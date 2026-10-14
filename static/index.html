@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>اسأل فيديو · Ask Video</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF1F4; --panel:#FFFFFF; --ink:#0E1B2A; --muted:#5B6877; --line:#D5DCE3;
+  --accent:#1F4FD8; --mark:#F5B301; --err:#B42318;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:"IBM Plex Sans Arabic","Segoe UI",Tahoma,sans-serif;background:var(--bg);color:var(--ink);line-height:1.7}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px}
+h1{font-size:20px;font-weight:600;margin:0}
+.lang{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:6px 14px;font:inherit;cursor:pointer}
+main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;padding:0 20px 20px;max-width:1200px;margin:auto}
+@media (max-width:860px){main{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+.row{display:flex;gap:8px}
+input[type=text]{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:inherit;color:var(--ink);background:#fff}
+button.go{border:0;background:var(--accent);color:#fff;border-radius:8px;padding:10px 18px;font:inherit;font-weight:500;cursor:pointer}
+button:disabled{opacity:.55;cursor:default}
+:focus-visible{outline:3px solid var(--mark);outline-offset:2px}
+#status{margin:10px 0 0;font-size:14px;color:var(--muted);min-height:22px}
+#status.err{color:var(--err)}
+.player{position:relative;aspect-ratio:16/9;margin-top:12px;background:#0E1B2A;border-radius:8px;overflow:hidden}
+.player>div,.player iframe{position:absolute;inset:0;width:100%;height:100%}
+#chat{display:flex;flex-direction:column;min-height:420px}
+#log{flex:1;overflow-y:auto;max-height:55vh;display:flex;flex-direction:column;gap:12px;padding-bottom:12px}
+.empty{color:var(--muted);margin:auto;text-align:center;max-width:30ch}
+.msg{padding:10px 14px;border-radius:12px;max-width:92%;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.user{background:var(--ink);color:#fff;align-self:flex-start}
+.msg.bot{background:var(--bg);align-self:flex-start}
+.ts{display:inline-flex;align-items:center;gap:5px;margin:0 2px;padding:0 9px 0 8px;border:0;border-radius:999px;background:var(--ink);color:#fff;font:inherit;font-size:13px;font-variant-numeric:tabular-nums;cursor:pointer;direction:ltr;line-height:1.7}
+.ts::before{content:"";border-style:solid;border-width:4px 0 4px 7px;border-color:transparent transparent transparent var(--mark)}
+.ts:hover{background:var(--accent)}
+.srcs{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);white-space:normal;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+form{display:flex;gap:8px;margin-top:8px}
+@media (prefers-reduced-motion:no-preference){.msg{animation:in .18s ease-out}@keyframes in{from{opacity:0;transform:translateY(4px)}}}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="t-title"></h1>
+  <button class="lang" id="langBtn" type="button"></button>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="row">
+      <input type="text" id="url" dir="ltr" autocomplete="off">
+      <button class="go" id="loadBtn" type="button"></button>
+    </div>
+    <p id="status"></p>
+    <div class="player"><div id="player"></div></div>
+  </section>
+
+  <section class="panel" id="chat">
+    <div id="log"></div>
+    <form id="askForm">
+      <input type="text" id="q" autocomplete="off" disabled>
+      <button class="go" id="askBtn" disabled></button>
+    </form>
+  </section>
+</main>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+const I18N = {
+  ar: {title:"اسأل فيديو", url:"الصق رابط يوتيوب", load:"تجهيز الفيديو", q:"اسأل عن الفيديو…", ask:"اسأل", lang:"English",
+       empty:"جهّز فيديو ثم اسأل، وستجد الإجابة مع الدقيقة والثانية.", loading:"جارٍ تحليل الفيديو…",
+       ready:n=>`جاهز. تم تقسيم الفيديو إلى ${n} مقطعاً.`, thinking:"جارٍ البحث…", err:"حدث خطأ: ",
+       sources:"المصادر:", network:"تعذّر الاتصال بالخادم. تأكد أنه يعمل.",
+       errs:{INVALID_URL:"الرابط غير صالح. الصق رابط فيديو يوتيوب.", INVALID_REQUEST:"مدخلات غير صالحة. تحقق من الرابط أو طول السؤال.",
+         RATE_LIMITED:"وصلت إلى حد Gemini المجاني. انتظر دقيقة وحاول مجدداً.", INVALID_API_KEY:"مفتاح Gemini غير صالح. راجع ملف .env.",
+         MISSING_API_KEY:"مفتاح GEMINI_API_KEY غير موجود في ملف .env.", MODEL_NOT_FOUND:"اسم نموذج Gemini غير صحيح. راجع إعدادات .env.",
+         GEMINI_UNAVAILABLE:"خدمة Gemini مشغولة حالياً. حاول بعد قليل.", NETWORK:"تعذّر الاتصال بـ Gemini. تأكد من الإنترنت.",
+         VIDEO_UNAVAILABLE:"الفيديو غير متاح أو خاص أو محذوف.", AGE_RESTRICTED:"الفيديو مقيّد بالعمر ولا يمكن قراءته.",
+         YOUTUBE_BLOCKED:"يوتيوب حجب الطلب من شبكتك. جرّب لاحقاً.", EMPTY_TRANSCRIPT:"لا يوجد نص قابل للقراءة في هذا الفيديو.",
+         YTDLP_MISSING:"لا توجد ترجمة للفيديو، وأداة yt-dlp غير مثبتة.", FFMPEG_MISSING:"لا توجد ترجمة للفيديو، وأداة ffmpeg غير مثبتة.",
+         DOWNLOAD_FAILED:"تعذّر تنزيل صوت الفيديو.", DOWNLOAD_TIMEOUT:"استغرق تنزيل الصوت وقتاً طويلاً.",
+         TRANSCRIPTION_FAILED:"فشل تفريغ الصوت بواسطة Gemini.", EMPTY_RESPONSE:"لم يُرجع Gemini إجابة. أعد صياغة السؤال.",
+         NOT_INDEXED:"جهّز الفيديو أولاً.", INTERNAL:"خطأ غير متوقع في الخادم."}},
+  en: {title:"Ask Video", url:"Paste a YouTube link", load:"Prepare video", q:"Ask about the video…", ask:"Ask", lang:"العربية",
+       empty:"Prepare a video, then ask. Answers come with the exact minute and second.", loading:"Analyzing the video…",
+       ready:n=>`Ready. The video was split into ${n} segments.`, thinking:"Searching…", err:"Error: ",
+       sources:"Sources:", network:"Cannot reach the server. Make sure it is running.",
+       errs:{INVALID_URL:"Invalid link. Paste a YouTube video link.", INVALID_REQUEST:"Invalid input. Check the link or the question length.",
+         RATE_LIMITED:"Gemini free-tier limit reached. Wait a minute and retry.", INVALID_API_KEY:"Gemini rejected the API key. Check your .env file.",
+         MISSING_API_KEY:"GEMINI_API_KEY is missing from your .env file.", MODEL_NOT_FOUND:"Gemini model name not found. Check your .env settings.",
+         GEMINI_UNAVAILABLE:"Gemini is busy right now. Try again shortly.", NETWORK:"Cannot reach Gemini. Check your internet connection.",
+         VIDEO_UNAVAILABLE:"The video is unavailable, private or removed.", AGE_RESTRICTED:"The video is age-restricted and can't be read.",
+         YOUTUBE_BLOCKED:"YouTube blocked requests from your network. Try later.", EMPTY_TRANSCRIPT:"This video has no readable transcript.",
+         YTDLP_MISSING:"No captions, and yt-dlp is not installed.", FFMPEG_MISSING:"No captions, and ffmpeg is not installed.",
+         DOWNLOAD_FAILED:"Could not download the video's audio.", DOWNLOAD_TIMEOUT:"Downloading the audio took too long.",
+         TRANSCRIPTION_FAILED:"Gemini failed to transcribe the audio.", EMPTY_RESPONSE:"Gemini returned no answer. Rephrase the question.",
+         NOT_INDEXED:"Prepare the video first.", INTERNAL:"Unexpected server error."}}
+};
+let lang = (navigator.language||"ar").startsWith("ar") ? "ar" : "en";
+let videoId = null, player = null, history = [], pendingId = null;
+const $ = id => document.getElementById(id);
+
+function applyLang(){
+  const t = I18N[lang];
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+  $("t-title").textContent = t.title; document.title = t.title;
+  $("url").placeholder = t.url; $("loadBtn").textContent = t.load;
+  $("q").placeholder = t.q; $("askBtn").textContent = t.ask; $("langBtn").textContent = t.lang;
+  if(!$("log").children.length) showEmpty();
+}
+function showEmpty(){ $("log").innerHTML = `<p class="empty">${I18N[lang].empty}</p>`; }
+function setStatus(msg, isErr){ $("status").textContent = msg; $("status").className = isErr ? "err" : ""; }
+
+function toSeconds(s){ return s.split(":").reduce((a,p)=>a*60+Number(p),0); }
+function seek(sec){ if(player && player.seekTo){ player.seekTo(sec,true); player.playVideo(); } }
+
+function render(text, el){
+  // escape first, then turn [MM:SS] / [H:MM:SS] into clickable chips
+  const safe = text.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  el.innerHTML = safe.replace(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g,
+    (_, ts) => `<button type="button" class="ts" data-s="${toSeconds(ts)}">${ts}</button>`);
+  el.querySelectorAll(".ts").forEach(b => b.onclick = () => seek(Number(b.dataset.s)));
+}
+function errText(e){
+  const t = I18N[lang];
+  if(e.code === "CLIENT_NETWORK") return t.err + t.network;
+  return t.err + (t.errs[e.code] || e.message);
+}
+function fill(el, text, sources){
+  render(text, el);
+  if(!sources || !sources.length) return;
+  const row = document.createElement("div"); row.className = "srcs";
+  row.append(I18N[lang].sources);
+  sources.forEach(s => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "ts"; b.textContent = s.label; b.title = s.text;
+    b.onclick = () => seek(s.start); row.appendChild(b);
+  });
+  el.appendChild(row);
+}
+function addMsg(role, text){
+  const log = $("log");
+  log.querySelector(".empty")?.remove();
+  const d = document.createElement("div");
+  d.className = "msg " + role;
+  role === "bot" ? render(text, d) : d.textContent = text;
+  log.appendChild(d); log.scrollTop = log.scrollHeight;
+  return d;
+}
+
+function loadPlayer(id){
+  if(player && player.loadVideoById){ player.loadVideoById(id); return; }
+  const make = () => { player = new YT.Player("player", {videoId:id, playerVars:{rel:0}}); };
+  window.YT && YT.Player ? make() : (window.onYouTubeIframeAPIReady = make);
+}
+
+async function api(path, body){
+  let r;
+  try{ r = await fetch(path, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)}); }
+  catch{ const e = new Error("network"); e.code = "CLIENT_NETWORK"; throw e; }
+  const data = await r.json().catch(()=>({}));
+  if(!r.ok){ const e = new Error(data.error?.message || r.statusText); e.code = data.error?.code; throw e; }
+  return data;
+}
+
+$("loadBtn").onclick = async () => {
+  const url = $("url").value.trim(); if(!url) return;
+  $("loadBtn").disabled = true; $("q").disabled = $("askBtn").disabled = true;
+  setStatus(I18N[lang].loading);
+  try{
+    const d = await api("/api/index", {url});
+    videoId = d.video_id; history = []; showEmpty(); loadPlayer(videoId);
+    setStatus(I18N[lang].ready(d.chunks));
+    $("q").disabled = $("askBtn").disabled = false; $("q").focus();
+  }catch(e){ setStatus(errText(e), true); }
+  $("loadBtn").disabled = false;
+};
+
+$("askForm").onsubmit = async ev => {
+  ev.preventDefault();
+  const q = $("q").value.trim(); if(!q || !videoId) return;
+  $("q").value = ""; $("askBtn").disabled = true;
+  addMsg("user", q);
+  const wait = addMsg("bot", I18N[lang].thinking);
+  try{
+    const d = await api("/api/ask", {video_id:videoId, question:q, history});
+    fill(wait, d.answer, d.sources);
+    history.push({role:"user", text:q}, {role:"assistant", text:d.answer});
+  }catch(e){ wait.textContent = errText(e); }
+  $("askBtn").disabled = false; $("log").scrollTop = $("log").scrollHeight;
+};
+
+$("langBtn").onclick = () => { lang = lang === "ar" ? "en" : "ar"; applyLang(); };
+applyLang();
+</script>
+</body>
+</html>
