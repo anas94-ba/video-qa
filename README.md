@@ -4,6 +4,7 @@ Ask questions about a YouTube video (or a podcast on YouTube). Every answer cite
 
 اسأل عن فيديو يوتيوب أو بودكاست، وستحصل على إجابة مع الدقيقة والثانية، والضغط على الوقت ينقلك إليه في المشغّل.
 
+![اAsk Video](images\image.png)
 ## Requirements / المتطلبات
 - Python 3.10+  (بايثون 3.10 أو أعلى)
 - مفتاح Gemini مجاني
