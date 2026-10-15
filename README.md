@@ -4,12 +4,26 @@ Ask questions about a YouTube video (or a podcast on YouTube). Every answer cite
 
 اسأل عن فيديو يوتيوب أو بودكاست، وستحصل على إجابة مع الدقيقة والثانية، والضغط على الوقت ينقلك إليه في المشغّل.
 
-## Run / تشغيل
+## Requirements / المتطلبات
+- Python 3.10+  (بايثون 3.10 أو أعلى)
+- مفتاح Gemini مجاني
 
-```bash
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+## Run / تشغيل
+**Windows (PowerShell):**
+```
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-cp .env.example .env          # add your free Gemini key
+copy .env.example .env
+uvicorn app.main:app --reload
+```
+
+**Linux / macOS:**
+```
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
 uvicorn app.main:app --reload
 ```
 Open http://127.0.0.1:8000 · Tests: `pip install -r requirements-dev.txt && pytest`
