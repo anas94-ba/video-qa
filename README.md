@@ -35,6 +35,30 @@ Open http://127.0.0.1:8000 · Tests: `pip install -r requirements-dev.txt && pyt
 3. Chunks are embedded with Gemini and cached in `cache/` (numpy cosine search, no vector DB needed).
 4. For a question: top 6 chunks → Gemini answers in the question's language and cites `[MM:SS]`.
 
+## Docker
+
+**With Docker Compose (recommended) / باستخدام Docker Compose:**
+
+```bash
+cp .env.example .env      # ضع مفتاح Gemini داخل .env / add your Gemini key
+docker compose up --build
+```
+
+**Without Compose / بدون Compose:**
+
+```bash
+docker build -t video-qa .
+docker run -p 8000:8000 --env-file .env -v "$(pwd)/cache:/app/cache" video-qa
+```
+
+Open <http://localhost:8000>
+
+- `ffmpeg` is included in the image (needed when a video has no captions).
+- The `cache/` folder is mounted so embeddings survive restarts.
+- الصورة تتضمن `ffmpeg`، ومجلد `cache/` محفوظ حتى لا تضيع البيانات عند إعادة التشغيل.
+
+> **Windows (PowerShell):** replace `$(pwd)` with `${PWD}`.
+
 ## API
 `POST /api/index` `{"url": "..."}` → `{"video_id", "chunks"}`
 
